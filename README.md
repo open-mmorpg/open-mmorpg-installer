@@ -52,6 +52,10 @@ See the kit's [CONTRIBUTING.md](https://github.com/open-mmorpg/open-mmorpg/blob/
 | `OpenMMORPG_Settings.unitypackage` | The six ProjectSettings files listed above |
 | `Tools~/` | Release tooling, ignored by Unity; see its README to rebuild the archives |
 
+## Releasing a new version
+
+Releases are built by the **Build installer** GitHub Action: run it from the Actions tab with the kit ref to package and the version to stamp. It rebuilds both archives, commits them, tags the installer, and publishes a GitHub Release. See [Tools~/README.md](Tools~/README.md) for details and the manual fallback.
+
 ## License
 
 MIT, see the kit's [LICENSE](https://github.com/open-mmorpg/open-mmorpg/blob/master/LICENSE).

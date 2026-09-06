@@ -1,0 +1,131 @@
+name: Build installer
+
+# Rebuilds OpenMMORPG.unitypackage and OpenMMORPG_Settings.unitypackage from a
+# kit ref, stamps the version, commits the archives, and tags the installer.
+# No Unity install or license is needed: the archives are built with
+# Tools~/build_unitypackage.py.
+
+on:
+  workflow_dispatch:
+    inputs:
+      kit_ref:
+        description: "Kit ref to package (tag, branch, or commit of open-mmorpg/open-mmorpg)"
+        required: true
+        default: master
+      version:
+        description: "Installer version to stamp, e.g. 1.1.0 (tag v1.1.0 is created)"
+        required: true
+      create_release:
+        description: "Also create a GitHub Release with the archives attached"
+        type: boolean
+        default: true
+
+permissions:
+  contents: write
+
+concurrency:
+  group: build-installer
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    env:
+      KIT_REPO: open-mmorpg/open-mmorpg
+      VERSION: ${{ github.event.inputs.version }}
+    steps:
+      - name: Validate version
+        run: |
+          if ! [[ "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::version must look like 1.2.3 (got '$VERSION')"; exit 1
+          fi
+
+      - name: Check out installer
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Refuse to overwrite an existing tag
+        run: |
+          if git rev-parse -q --verify "refs/tags/v$VERSION" >/dev/null; then
+            echo "::error::tag v$VERSION already exists"; exit 1
+          fi
+
+      # KIT_REPO_TOKEN is only needed while the kit repo is private. Once it is
+      # public, the default job token is enough and the secret can be removed.
+      - name: Check out kit
+        uses: actions/checkout@v4
+        with:
+          repository: ${{ env.KIT_REPO }}
+          ref: ${{ github.event.inputs.kit_ref }}
+          path: kit
+          token: ${{ secrets.KIT_REPO_TOKEN || github.token }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Build archives
+        run: |
+          KIT_SHA=$(git -C kit rev-parse --short HEAD)
+          echo "KIT_SHA=$KIT_SHA" >> "$GITHUB_ENV"
+          python Tools~/build_unitypackage.py kit kit Assets/OpenMMORPG OpenMMORPG.unitypackage
+          python Tools~/build_unitypackage.py settings Tools~/ProjectSettings OpenMMORPG_Settings.unitypackage
+
+      - name: Verify archives
+        run: |
+          python - <<'EOF'
+          import tarfile, os
+          for name, min_entries in (("OpenMMORPG.unitypackage", 1000), ("OpenMMORPG_Settings.unitypackage", 6)):
+              with tarfile.open(name) as t:
+                  entries = [m for m in t.getmembers() if m.isfile() and m.name.endswith("/pathname")]
+              print(f"{name}: {len(entries)} entries, {os.path.getsize(name)/1e6:.1f} MB")
+              assert len(entries) >= min_entries, f"{name} looks incomplete"
+          EOF
+          # Every kit entry must carry a pathname under Assets/OpenMMORPG
+          python - <<'EOF'
+          import tarfile
+          with tarfile.open("OpenMMORPG.unitypackage") as t:
+              bad = [m.name for m in t if m.isfile() and m.name.endswith("/pathname")
+                     and not t.extractfile(m).read().startswith(b"Assets/OpenMMORPG/")]
+          assert not bad, bad[:5]
+          print("all pathnames under Assets/OpenMMORPG")
+          EOF
+
+      - name: Stamp version
+        run: |
+          python - <<'EOF'
+          import json, os, re
+          v = os.environ["VERSION"]
+          p = "package.json"; m = json.load(open(p, encoding="utf-8"))
+          m["version"] = v
+          with open(p, "w", encoding="utf-8", newline="\n") as f:
+              json.dump(m, f, indent=2, ensure_ascii=False); f.write("\n")
+          w = "Editor/OpenMMORPG_InstallWizard.cs"; s = open(w, encoding="utf-8").read()
+          s2, n = re.subn(r'(PREF_KEY_SHOWN = "OpenMMORPG_WizardShown_)[^"]+(")', rf'\g<1>{v}\g<2>', s)
+          assert n == 1, "PREF_KEY_SHOWN not found"
+          open(w, "w", encoding="utf-8", newline="\n").write(s2)
+          print("stamped", v)
+          EOF
+          git diff --stat
+
+      - name: Commit and tag
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add package.json Editor/OpenMMORPG_InstallWizard.cs OpenMMORPG.unitypackage OpenMMORPG_Settings.unitypackage
+          git commit -m "v$VERSION" -m "Kit: $KIT_REPO@${{ github.event.inputs.kit_ref }} ($KIT_SHA)"
+          git tag -a "v$VERSION" -m "v$VERSION"
+          git push origin HEAD:${{ github.ref_name }}
+          git push origin "v$VERSION"
+
+      - name: Create GitHub Release
+        if: ${{ github.event.inputs.create_release == 'true' }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "v$VERSION" \
+            --title "v$VERSION" \
+            --notes "Built from $KIT_REPO@${{ github.event.inputs.kit_ref }} ($KIT_SHA). Install via Package Manager git URL: https://github.com/${{ github.repository }}.git#v$VERSION" \
+            OpenMMORPG.unitypackage OpenMMORPG_Settings.unitypackage
