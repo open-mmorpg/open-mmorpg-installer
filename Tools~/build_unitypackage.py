@@ -10,7 +10,7 @@ usage:
   build_unitypackage.py kit  <src_dir> <asset_prefix> <out.unitypackage>
   build_unitypackage.py settings <ProjectSettings_dir> <out.unitypackage>
 """
-import io, os, re, sys, tarfile, time
+import gzip, io, os, re, sys, tarfile, time
 
 # Unity's fixed pseudo-GUIDs for ProjectSettings assets
 SETTINGS_IDS = {
@@ -28,6 +28,25 @@ def guid_of(meta_path):
     if not m:
         raise SystemExit(f"no guid in {meta_path}")
     return m.group(1).decode().lower()
+
+
+class _Archive:
+    """Tar written in memory, then gzip'd with the plain gzip module.
+
+    Unity's package reader rejects the gzip stream that tarfile's "w:gz" mode
+    produces (it embeds the archive filename in the gzip header); the tar
+    bytes are fine. Compressing the finished tar with gzip.compress yields a
+    stream Unity accepts.
+    """
+    def __init__(self, out):
+        self.out = out; self.buf = io.BytesIO()
+        self.tar = tarfile.open(fileobj=self.buf, mode="w", format=tarfile.GNU_FORMAT)
+    def __enter__(self): return self.tar
+    def __exit__(self, *exc):
+        self.tar.close()
+        if exc[0] is None:
+            with open(self.out, "wb") as f:
+                f.write(gzip.compress(self.buf.getvalue(), compresslevel=6, mtime=0))
 
 def add_bytes(tar, name, data, mtime):
     ti = tarfile.TarInfo(name)
@@ -49,7 +68,7 @@ def add_entry(tar, guid, pathname, asset_bytes, meta_bytes, mtime):
 
 def build_kit(src, prefix, out):
     mtime = int(time.time()); n_files = n_dirs = 0; skipped = []; seen = set()
-    with tarfile.open(out, "w:gz", format=tarfile.GNU_FORMAT) as tar:
+    with _Archive(out) as tar:
         for root, dirs, files in os.walk(src):
             dirs[:] = sorted(d for d in dirs if not d.startswith("."))
             rel_root = os.path.relpath(root, src).replace("\\", "/")
@@ -81,7 +100,7 @@ def build_kit(src, prefix, out):
 
 def build_settings(src, out):
     mtime = int(time.time())
-    with tarfile.open(out, "w:gz", format=tarfile.GNU_FORMAT) as tar:
+    with _Archive(out) as tar:
         for fn, g in SETTINGS_IDS.items():
             with open(os.path.join(src, fn), "rb") as f: ab = f.read()
             add_entry(tar, g, f"ProjectSettings/{fn}", ab, None, mtime)
