@@ -12,7 +12,7 @@ namespace OpenMMORPG
             public string version = "";
         }
 
-        private const string PREF_KEY_SHOWN = "OpenMMORPG_WizardShown_1.0.0";
+        private const string PREF_KEY_SHOWN = "OpenMMORPG_WizardShown_1.0.1";
 
         private Texture2D iconTexture;
         private int currentStep = 1;

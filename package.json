@@ -1,6 +1,6 @@
 {
   "name": "com.openmmorpg.installer",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "displayName": "Open MMORPG",
   "description": "Installs Open MMORPG and required Unity packages.",
   "unity": "6000.3",
