@@ -1,0 +1,26 @@
+{
+  "name": "com.openmmorpg.installer",
+  "version": "1.0.0",
+  "displayName": "Open MMORPG",
+  "description": "Installs Open MMORPG and required Unity packages.",
+  "unity": "6000.3",
+  "author": "Open MMORPG",
+  "documentationUrl": "https://github.com/open-mmorpg/open-mmorpg/blob/master/README.md",
+  "changelogUrl": "https://github.com/open-mmorpg/open-mmorpg/releases",
+  "licensesUrl": "https://github.com/open-mmorpg/open-mmorpg/blob/master/LICENSE",
+  "dependencies": {
+    "com.unity.addressables": "2.9.1",
+    "com.unity.burst": "1.8.30",
+    "com.unity.collections": "2.6.8",
+    "com.unity.editorcoroutines": "1.1.0",
+    "com.unity.inputsystem": "1.20.0",
+    "com.unity.mathematics": "1.3.3",
+    "com.unity.nuget.mono-cecil": "1.11.6",
+    "com.unity.nuget.newtonsoft-json": "3.2.2",
+    "com.unity.render-pipelines.core": "17.3.0",
+    "com.unity.render-pipelines.universal-config": "17.0.3",
+    "com.unity.scriptablebuildpipeline": "2.6.1",
+    "com.unity.shadergraph": "17.3.0",
+    "com.unity.modules.subsystems": "1.0.0"
+  }
+}
