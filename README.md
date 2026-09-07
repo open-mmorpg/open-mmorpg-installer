@@ -13,7 +13,7 @@ Open MMORPG targets **Unity 6000.3** or newer.
 https://github.com/open-mmorpg/open-mmorpg-installer.git
 ```
 
-2. A setup wizard opens once the package is installed. If it does not appear, or you close it, reopen it at Open MMORPG → Install → **Show Setup Wizard**.
+2. A welcome screen opens once the package is installed. It appears once per project for each version of the package, tracks which steps are already done, and can be reopened at any time from Open MMORPG → Install → **Show Setup Wizard**. Untick **Show this window when the project opens** to stop it appearing.
 
 3. Click **Import Settings** to apply the base project settings. The following files are overwritten:
 
@@ -32,7 +32,7 @@ The kit archive also carries a Package Manager manifest, so importing `OpenMMORP
 
 ## Update
 
-Update the package in the Package Manager and re-run the wizard.
+Update the package in the Package Manager. The welcome screen reappears after an update so you can reimport the kit.
 
 ## Develop the kit
 
@@ -49,7 +49,8 @@ See the kit's [CONTRIBUTING.md](https://github.com/open-mmorpg/open-mmorpg/blob/
 | Path | Purpose |
 | --- | --- |
 | `package.json` | Package manifest and Unity package dependencies |
-| `Editor/OpenMMORPG_InstallWizard.cs` | The setup wizard |
+| `Editor/OpenMMORPG_InstallWizard.cs` | The welcome screen and its setup steps |
+| `Editor/OpenMMORPG.Installer.Editor.asmdef` | Editor assembly for the welcome screen; Unity ignores package scripts without one |
 | `OpenMMORPG.unitypackage` | The kit, imported into `Assets/OpenMMORPG` |
 | `OpenMMORPG_Settings.unitypackage` | The six ProjectSettings files listed above |
 | `Tools~/` | Release tooling, ignored by Unity; see its README to rebuild the archives |

@@ -1,271 +1,353 @@
+using System.IO;
 using UnityEditor;
 using UnityEngine;
-using System.IO;
 
 namespace OpenMMORPG
 {
+    /// <summary>
+    /// Welcome screen shown the first time Open MMORPG is installed in a project.
+    /// It walks through importing the base project settings and the kit itself, and
+    /// reflects what is already installed when it is reopened later.
+    /// </summary>
     public class OpenMMORPG_InstallWizard : EditorWindow
     {
-        [System.Serializable]
-        private class PackageManifest
-        {
-            public string version = "";
-        }
+        private const string PACKAGE_NAME = "com.openmmorpg.installer";
+        private const string SETTINGS_PACKAGE_FILE = "OpenMMORPG_Settings.unitypackage";
+        private const string KIT_PACKAGE_FILE = "OpenMMORPG.unitypackage";
+        private const string KIT_FOLDER = "Assets/OpenMMORPG";
+        private const string ADDON_MANAGER_MENU = "Open MMORPG/Develop/Addon Manager";
 
-        private const string PREF_KEY_SHOWN = "OpenMMORPG_WizardShown_1.0.3";
+        private const string KIT_REPO_URL = "https://github.com/open-mmorpg/open-mmorpg";
+        private const string DOCS_URL = KIT_REPO_URL + "/blob/master/README.md";
+        private const string ISSUES_URL = KIT_REPO_URL + "/issues";
+
+        // A layer that only exists once the kit project settings are imported.
+        private const string KIT_LAYER = "WarpPortalOrSafeArea";
 
         private Texture2D iconTexture;
-        private int currentStep = 1;
+        private string packageVersion = "";
+        private bool autoShow;
 
-        private const string PACKAGE_NAME = "com.openmmorpg.installer";
-        private const string SETTINGS_PACKAGE_PATH = "Packages/" + PACKAGE_NAME + "/OpenMMORPG_Settings.unitypackage";
-        private const string KIT_PACKAGE_PATH = "Packages/" + PACKAGE_NAME + "/OpenMMORPG.unitypackage";
-        private const string KIT_REPO_URL = "https://github.com/open-mmorpg/open-mmorpg.git";
-        private PackageManifest currentInstall = new PackageManifest();
+        private GUIStyle richTextStyle;
+        private GUIStyle bodyStyle;
+        private GUIStyle titleStyle;
+        private GUIStyle stepTitleStyle;
 
-        GUIStyle richTextStyle;
-        GUIStyle bulletStyle;
+        #region Show once per project
+
+        // EditorPrefs are shared by every project on this machine, so these keys are
+        // scoped by project path. Otherwise installing into a second project would
+        // silently skip the welcome screen.
+        private static string ProjectKey(string key)
+        {
+            return "OpenMMORPG.Welcome." + key + "." + StableHash(Application.dataPath);
+        }
+
+        // Deliberately not string.GetHashCode: that is only guaranteed to be stable
+        // within a single process, and these keys have to survive editor restarts.
+        private static string StableHash(string value)
+        {
+            unchecked
+            {
+                uint hash = 2166136261;
+                for (int i = 0; i < value.Length; i++)
+                {
+                    hash ^= value[i];
+                    hash *= 16777619;
+                }
+                return hash.ToString("X8");
+            }
+        }
 
         [InitializeOnLoadMethod]
         private static void InitOnLoad()
         {
-            // Show only once per project (re-open from the Tools menu)
-            if (!EditorPrefs.GetBool(PREF_KEY_SHOWN, false))
+            if (Application.isBatchMode)
+                return;
+
+            EditorApplication.delayCall += () =>
             {
-                EditorApplication.delayCall += () =>
-                {
-                    ShowWizard();
-                    EditorPrefs.SetBool(PREF_KEY_SHOWN, true);
-                };
-            }
+                if (!EditorPrefs.GetBool(ProjectKey("AutoShow"), true))
+                    return;
+
+                // Show once per project for each version of the package, so an update
+                // surfaces the screen again. An unreadable version still resolves to a
+                // non-empty marker, otherwise it would match the default and the screen
+                // would never appear.
+                string version = ReadPackageVersion();
+                if (string.IsNullOrEmpty(version))
+                    version = "unknown";
+                if (EditorPrefs.GetString(ProjectKey("ShownVersion"), "") == version)
+                    return;
+
+                EditorPrefs.SetString(ProjectKey("ShownVersion"), version);
+                ShowWizard();
+            };
         }
 
+        [MenuItem("Open MMORPG/Install/Show Setup Wizard", false, -1000)]
         public static void ShowWizard()
         {
-            var window = GetWindow<OpenMMORPG_InstallWizard>(true, "Open MMORPG Setup Wizard");
-            window.minSize = new Vector2(600, 580);
-            window.maxSize = new Vector2(600, 580);
+            OpenMMORPG_InstallWizard window = GetWindow<OpenMMORPG_InstallWizard>(true, "Welcome to Open MMORPG");
+            window.minSize = new Vector2(620, 620);
+            window.maxSize = new Vector2(620, 620);
             window.Show();
         }
 
-        private void OnEnable()
-        {
-            UpdateInstalledVersion();
+        #endregion
 
-            iconTexture = Resources.Load<Texture2D>("OpenMMORPG");
-            if (iconTexture == null)
+        #region Package paths
+
+        private static UnityEditor.PackageManager.PackageInfo InstallerPackage
+        {
+            get { return UnityEditor.PackageManager.PackageInfo.FindForPackageName(PACKAGE_NAME); }
+        }
+
+        private static string ReadPackageVersion()
+        {
+            UnityEditor.PackageManager.PackageInfo info = InstallerPackage;
+            return info != null ? info.version : "";
+        }
+
+        /// <summary>Path of a file shipped inside this package, or null when missing.</summary>
+        private static string PackageFilePath(string fileName)
+        {
+            UnityEditor.PackageManager.PackageInfo info = InstallerPackage;
+            if (info != null)
             {
-                Debug.LogWarning("OpenMMORPG.png not found in Resources");
+                string resolved = Path.Combine(info.resolvedPath, fileName);
+                if (File.Exists(resolved))
+                    return resolved;
             }
 
-            richTextStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
-            {
-                richText = true
-            };
-            bulletStyle = new GUIStyle(EditorStyles.wordWrappedLabel)
-            {
-                richText = true,
-                wordWrap = true
-            };
+            // Fallback for a copy embedded under the Packages folder of the project.
+            string virtualPath = "Packages/" + PACKAGE_NAME + "/" + fileName;
+            return File.Exists(virtualPath) ? virtualPath : null;
+        }
+
+        #endregion
+
+        #region Installed state
+
+        private static bool SettingsImported
+        {
+            get { return LayerMask.NameToLayer(KIT_LAYER) != -1; }
+        }
+
+        private static bool KitImported
+        {
+            get { return AssetDatabase.IsValidFolder(KIT_FOLDER); }
+        }
+
+        #endregion
+
+        private void OnEnable()
+        {
+            packageVersion = ReadPackageVersion();
+            autoShow = EditorPrefs.GetBool(ProjectKey("AutoShow"), true);
+
+            iconTexture = AssetDatabase.LoadAssetAtPath<Texture2D>("Packages/" + PACKAGE_NAME + "/Resources/OpenMMORPG.png");
+            if (iconTexture == null)
+                iconTexture = Resources.Load<Texture2D>("OpenMMORPG");
+
+            AssetDatabase.importPackageCompleted += OnPackageImported;
+        }
+
+        private void OnDisable()
+        {
+            AssetDatabase.importPackageCompleted -= OnPackageImported;
+        }
+
+        private void OnPackageImported(string packageName)
+        {
+            Repaint();
+        }
+
+        private void EnsureStyles()
+        {
+            if (richTextStyle != null)
+                return;
+
+            richTextStyle = new GUIStyle(EditorStyles.wordWrappedLabel) { richText = true };
+            bodyStyle = new GUIStyle(EditorStyles.wordWrappedLabel) { richText = true, wordWrap = true };
+            titleStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 20 };
+            stepTitleStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
         }
 
         private void OnGUI()
         {
+            EnsureStyles();
             DrawHeader();
-            DrawStepsBar();
-            DrawContent();
+            DrawSteps();
+            GUILayout.FlexibleSpace();
             DrawFooter();
         }
 
         private void DrawHeader()
         {
             EditorGUILayout.BeginHorizontal();
-            GUILayout.Space(10);
+            GUILayout.Space(16);
 
             if (iconTexture != null)
             {
                 GUILayout.BeginVertical();
-                EditorGUILayout.Space(10);
-                GUILayout.Box(iconTexture, GUILayout.Width(64), GUILayout.Height(64));
+                GUILayout.Space(18);
+                GUILayout.Box(iconTexture, GUIStyle.none, GUILayout.Width(72), GUILayout.Height(72));
                 GUILayout.EndVertical();
-
-                GUILayout.Space(12);
+                GUILayout.Space(14);
             }
 
             GUILayout.BeginVertical();
-            EditorGUILayout.Space(10);
-
-            GUILayout.Label($"<b>Package version:</b> {currentInstall.version}", richTextStyle);
-            EditorGUILayout.Space(6);
-            GUILayout.Label("Open MMORPG is a free, community-maintained distribution of MMORPG Kit.", richTextStyle);
-            EditorGUILayout.Space(6);
-            GUILayout.Label("What's Included", EditorStyles.boldLabel);
-            DrawBullet("Addon Manager is an in-editor interface that allows the community and team to modularize functionality.");
-            DrawBullet("Login Manager is a clean separation of login/authentication logic from the central game servers.");
-            DrawBullet("Sharded DatabaseNetworkManager adds lanes, queueing, deferred/throttled saves, and a working in-memory cache.");
-            DrawBullet("Cell-based position quantization dramatically improves network efficiency for entity movement.");
-            DrawBullet("Jobs Movement Pipeline converted from monothreaded per-entity updates to Unity Jobs + Burst parallel processing.");
-
+            GUILayout.Space(20);
+            GUILayout.Label("Welcome to Open MMORPG", titleStyle);
+            GUILayout.Label(string.IsNullOrEmpty(packageVersion) ? "Installer" : "Installer version " + packageVersion, EditorStyles.miniLabel);
+            GUILayout.Space(6);
+            GUILayout.Label("A free, community-maintained distribution of MMORPG Kit. Follow the steps below to set up your project.", richTextStyle);
             GUILayout.EndVertical();
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
-            EditorGUILayout.Space(20);
-        }
 
-        private void DrawBullet(string text)
-        {
-            GUILayout.BeginHorizontal();
+            GUILayout.Space(16);
+            EditorGUILayout.EndHorizontal();
+
+            GUILayout.Space(14);
+            DrawSeparator();
             GUILayout.Space(10);
-            GUILayout.Label("•", bulletStyle, GUILayout.Width(15));
-            GUILayout.Label(text, bulletStyle);
-            GUILayout.EndHorizontal();
         }
 
-        private void DrawStepsBar()
+        private void DrawSteps()
         {
-            EditorGUILayout.BeginHorizontal();
-            GUILayout.Space(40);
+            bool settingsDone = SettingsImported;
+            bool kitDone = KitImported;
 
-            DrawStepBox("1. Settings", currentStep >= 1, currentStep > 1);
-            DrawStepBox("2. Package", currentStep >= 2, currentStep > 2);
-            DrawStepBox("3. Customize", currentStep >= 3, currentStep > 3);
+            DrawStep(1, "Import project settings", settingsDone,
+                "Applies the recommended Input, Physics, Tags and Layers, Quality and Time settings. Those project settings files are overwritten, so do this on a new project or to reset them.",
+                settingsDone ? "Reimport Settings" : "Import Settings",
+                delegate { ImportArchive(SETTINGS_PACKAGE_FILE); });
 
-            GUILayout.FlexibleSpace();
-            EditorGUILayout.EndHorizontal();
+            DrawStep(2, "Import Open MMORPG", kitDone,
+                "Imports the kit into " + KIT_FOLDER + " and adds the Unity packages it needs. Gathering the contents takes a moment after you click.",
+                kitDone ? "Reimport Open MMORPG" : "Import Open MMORPG",
+                delegate { ImportArchive(KIT_PACKAGE_FILE); });
+
+            DrawStep(3, "Customize with addons", false,
+                "Browse and install community addons from the Addon Manager. Available once the kit is imported.",
+                "Open Addon Manager",
+                delegate { EditorApplication.ExecuteMenuItem(ADDON_MANAGER_MENU); },
+                kitDone);
         }
 
-        private void DrawStepBox(string label, bool active, bool completed)
-        {
-            Color bgColor = completed ? new Color(0.2f, 0.6f, 0.2f) :
-                            active    ? new Color(0f, 0.5f, 0f) :
-                                        new Color(0.3f, 0.3f, 0.3f);
-
-            // Use GUILayoutUtility instead of GetControlRect to avoid interaction
-            Rect rect = GUILayoutUtility.GetRect(172, 32);
-            EditorGUI.DrawRect(rect, bgColor);
-
-            GUIStyle style = new GUIStyle(EditorStyles.label)
-            {
-                alignment = TextAnchor.MiddleCenter,
-                fontStyle = FontStyle.Bold,
-                normal = { textColor = Color.white }
-            };
-
-            GUI.Label(rect, label, style);
-        }
-
-        private void DrawContent()
+        private void DrawStep(int number, string title, bool done, string body, string buttonLabel, System.Action action, bool enabled = true)
         {
             GUILayout.BeginHorizontal();
-            GUILayout.Space(40);
+            GUILayout.Space(16);
             GUILayout.BeginVertical(EditorStyles.helpBox);
+            GUILayout.Space(6);
+
+            GUILayout.BeginHorizontal();
+            DrawStepBadge(number, done);
             GUILayout.Space(8);
-
-            switch (currentStep)
-            {
-                case 1:
-                    GUILayout.Label("Import the recommended settings for Input, Physics2D, Tags/Layers, Quality, and Time.\n\nThis should only be done on install or if you wish to reset settings.", richTextStyle);
-                    break;
-
-                case 2:
-                    GUILayout.Label("Import the latest Open MMORPG package. It will take a minute to gather content after clicking the Import button.", richTextStyle);
-                    break;
-
-                case 3:
-                    GUILayout.Label("Setup complete!\n\nCustomize your version of Open MMORPG with addons found in <b>Open MMORPG > Develop > Addon Manager</b> menu.\n\nIf you are developing Open MMORPG, delete the OpenMMORPG directory and git clone the repo. <i>All development should be on a feature branch upstreamed from develop.</i>", richTextStyle);
-                    GUILayout.Space(8);
-
-                    GUILayout.BeginHorizontal();
-                    GUILayout.Space(20);
-                    GUILayout.Label("git clone " + KIT_REPO_URL + " Assets/OpenMMORPG", richTextStyle);
-                    GUILayout.EndHorizontal();
-                    break;
-            }
-
-            GUILayout.Space(8);
-            GUILayout.EndVertical();
-            GUILayout.Space(40);
+            GUILayout.Label(title, stepTitleStyle);
+            GUILayout.FlexibleSpace();
+            if (done)
+                GUILayout.Label("Installed", EditorStyles.miniLabel);
             GUILayout.EndHorizontal();
+
+            GUILayout.Space(4);
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(32);
+            GUILayout.Label(body, bodyStyle);
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(32);
+            using (new EditorGUI.DisabledScope(!enabled))
+            {
+                if (GUILayout.Button(buttonLabel, GUILayout.Width(190), GUILayout.Height(24)))
+                    action();
+            }
+            GUILayout.FlexibleSpace();
+            GUILayout.EndHorizontal();
+
+            GUILayout.Space(6);
+            GUILayout.EndVertical();
+            GUILayout.Space(16);
+            GUILayout.EndHorizontal();
+            GUILayout.Space(8);
+        }
+
+        private void DrawStepBadge(int number, bool done)
+        {
+            Rect rect = GUILayoutUtility.GetRect(24, 24, GUILayout.Width(24), GUILayout.Height(24));
+            Color fill = done
+                ? new Color(0.16f, 0.55f, 0.24f)
+                : (EditorGUIUtility.isProSkin ? new Color(0.32f, 0.32f, 0.32f) : new Color(0.62f, 0.62f, 0.62f));
+            EditorGUI.DrawRect(rect, fill);
+
+            GUIStyle style = new GUIStyle(EditorStyles.boldLabel);
+            style.alignment = TextAnchor.MiddleCenter;
+            style.normal.textColor = Color.white;
+
+            GUI.Label(rect, done ? "✓" : number.ToString(), style);
+        }
+
+        private void DrawSeparator()
+        {
+            Rect rect = GUILayoutUtility.GetRect(1, 1, GUILayout.ExpandWidth(true));
+            rect.xMin += 16;
+            rect.xMax -= 16;
+            EditorGUI.DrawRect(rect, EditorGUIUtility.isProSkin ? new Color(0f, 0f, 0f, 0.35f) : new Color(0f, 0f, 0f, 0.15f));
         }
 
         private void DrawFooter()
         {
-            EditorGUILayout.Space(20);
-            EditorGUILayout.BeginHorizontal();
+            DrawSeparator();
+            GUILayout.Space(8);
+
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(16);
+
+            if (GUILayout.Button("Documentation", EditorStyles.miniButton, GUILayout.Width(110)))
+                Application.OpenURL(DOCS_URL);
+            if (GUILayout.Button("GitHub", EditorStyles.miniButton, GUILayout.Width(80)))
+                Application.OpenURL(KIT_REPO_URL);
+            if (GUILayout.Button("Report an Issue", EditorStyles.miniButton, GUILayout.Width(110)))
+                Application.OpenURL(ISSUES_URL);
+
             GUILayout.FlexibleSpace();
+            GUILayout.Space(16);
+            GUILayout.EndHorizontal();
 
-            if (currentStep == 1)
-            {
-                if (GUILayout.Button("Import Settings →", GUILayout.Width(160)))
-                {
-                    if (File.Exists(SETTINGS_PACKAGE_PATH))
-                    {
-                        AssetDatabase.ImportPackage(SETTINGS_PACKAGE_PATH, true);
-                        currentStep = 2;
-                    }
-                    else
-                    {
-                        EditorUtility.DisplayDialog("File Missing",
-                            $"Cannot find '{SETTINGS_PACKAGE_PATH}' in project root.",
-                            "OK");
-                    }
-                }
+            GUILayout.Space(8);
+            GUILayout.BeginHorizontal();
+            GUILayout.Space(16);
 
-                GUILayout.Space(10);
+            EditorGUI.BeginChangeCheck();
+            autoShow = GUILayout.Toggle(autoShow, " Show this window when the project opens");
+            if (EditorGUI.EndChangeCheck())
+                EditorPrefs.SetBool(ProjectKey("AutoShow"), autoShow);
 
-                if (GUILayout.Button("Skip", GUILayout.Width(120)))
-                    currentStep = 2;
-            }
-            else if (currentStep == 2)
-            {
-                if (GUILayout.Button("Import Open MMORPG →", GUILayout.Width(180)))
-                {
-                    if (File.Exists(KIT_PACKAGE_PATH))
-                    {
-                        AssetDatabase.ImportPackage(KIT_PACKAGE_PATH, true);
-                        currentStep = 3;
-                    }
-                    else
-                    {
-                        EditorUtility.DisplayDialog("File Missing",
-                            $"Cannot find '{KIT_PACKAGE_PATH}' in project root.",
-                            "OK");
-                    }
-                }
-            }
-            else // Step 3
-            {
-                if (GUILayout.Button("Finish & Close", GUILayout.Width(140)))
-                    Close();
-            }
+            GUILayout.FlexibleSpace();
+            if (GUILayout.Button("Close", GUILayout.Width(100), GUILayout.Height(24)))
+                Close();
 
-            GUILayout.Space(40);
-            EditorGUILayout.EndHorizontal();
+            GUILayout.Space(16);
+            GUILayout.EndHorizontal();
+            GUILayout.Space(12);
         }
 
-        private void UpdateInstalledVersion()
+        private void ImportArchive(string fileName)
         {
-            string packageJsonPath = $"Packages/{PACKAGE_NAME}/package.json";
-
-            if (File.Exists(packageJsonPath))
+            string path = PackageFilePath(fileName);
+            if (string.IsNullOrEmpty(path))
             {
-                try
-                {
-                    string json = File.ReadAllText(packageJsonPath);
-                    currentInstall = JsonUtility.FromJson<PackageManifest>(json);
-                }
-                catch (System.Exception e)
-                {
-                    Debug.LogWarning($"Failed to read package.json: {e.Message}");
-                }
+                EditorUtility.DisplayDialog("File Missing",
+                    "Cannot find " + fileName + " inside the " + PACKAGE_NAME + " package.\n\n" +
+                    "Reinstall the installer package through Window > Package Manager, or download the archive from " + KIT_REPO_URL + "/releases.",
+                    "OK");
+                return;
             }
-        }
 
-        [MenuItem("Open MMORPG/Install/Show Setup Wizard", false, -1000)]
-        private static void ManualOpen()
-        {
-            EditorPrefs.SetBool(PREF_KEY_SHOWN, false);
-            ShowWizard();
+            AssetDatabase.ImportPackage(path, true);
         }
     }
 }
