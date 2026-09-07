@@ -13,7 +13,7 @@ Open MMORPG targets **Unity 6000.3** or newer.
 https://github.com/open-mmorpg/open-mmorpg-installer.git
 ```
 
-2. A setup wizard opens once the package is installed. If it does not appear, or you close it, reopen it at Tools → OpenMMORPG → Install → **Show Setup Wizard**.
+2. A setup wizard opens once the package is installed. If it does not appear, or you close it, reopen it at Open MMORPG → Install → **Show Setup Wizard**.
 
 3. Click **Import Settings** to apply the base project settings. The following files are overwritten:
 
@@ -26,7 +26,7 @@ https://github.com/open-mmorpg/open-mmorpg-installer.git
 
 4. Click **Import Open MMORPG** to import the latest release into `Assets/OpenMMORPG`.
 
-After installation, browse addons at Tools → OpenMMORPG → Develop → **Addon Manager**.
+After installation, browse addons at Open MMORPG → Develop → **Addon Manager**.
 
 The kit archive also carries a Package Manager manifest, so importing `OpenMMORPG.unitypackage` on its own (for example from a GitHub Release) installs the same Unity package dependencies.
 

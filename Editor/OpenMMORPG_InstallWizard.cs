@@ -172,7 +172,7 @@ namespace OpenMMORPG
                     break;
 
                 case 3:
-                    GUILayout.Label("Setup complete!\n\nCustomize your version of Open MMORPG with addons found in <b>Tools > OpenMMORPG > Develop > Addon Manager</b> menu.\n\nIf you are developing Open MMORPG, delete the OpenMMORPG directory and git clone the repo. <i>All development should be on a feature branch upstreamed from develop.</i>", richTextStyle);
+                    GUILayout.Label("Setup complete!\n\nCustomize your version of Open MMORPG with addons found in <b>Open MMORPG > Develop > Addon Manager</b> menu.\n\nIf you are developing Open MMORPG, delete the OpenMMORPG directory and git clone the repo. <i>All development should be on a feature branch upstreamed from develop.</i>", richTextStyle);
                     GUILayout.Space(8);
 
                     GUILayout.BeginHorizontal();
@@ -261,7 +261,7 @@ namespace OpenMMORPG
             }
         }
 
-        [MenuItem("Tools/OpenMMORPG/Install/Show Setup Wizard", false, -1000)]
+        [MenuItem("Open MMORPG/Install/Show Setup Wizard", false, -1000)]
         private static void ManualOpen()
         {
             EditorPrefs.SetBool(PREF_KEY_SHOWN, false);
