@@ -7,10 +7,15 @@ Format (matches what Unity's AssetDatabase.ExportPackage writes):
 stored in a gzip'd tar, directory entry first.
 
 usage:
-  build_unitypackage.py kit  <src_dir> <asset_prefix> <out.unitypackage>
+  build_unitypackage.py kit  <src_dir> <asset_prefix> <out.unitypackage> [--deps <package.json>]
   build_unitypackage.py settings <ProjectSettings_dir> <out.unitypackage>
+
+--deps embeds the "dependencies" of a UPM package.json as a Package Manager
+manifest (a packagemanagermanifest/asset entry, the same thing Unity's own
+exporter writes). Unity then adds those packages to the project when the
+archive is imported, so the kit compiles even without the installer package.
 """
-import gzip, io, os, re, sys, tarfile, time
+import gzip, io, json, os, re, sys, tarfile, time
 
 # Unity's fixed pseudo-GUIDs for ProjectSettings assets
 SETTINGS_IDS = {
@@ -66,9 +71,16 @@ def add_entry(tar, guid, pathname, asset_bytes, meta_bytes, mtime):
         add_bytes(tar, f"{guid}/asset.meta", meta_bytes, mtime)
     add_bytes(tar, f"{guid}/pathname", pathname.encode("utf-8"), mtime)
 
-def build_kit(src, prefix, out):
+def build_kit(src, prefix, out, deps_json=None):
     mtime = int(time.time()); n_files = n_dirs = 0; skipped = []; seen = set()
     with _Archive(out) as tar:
+        if deps_json:
+            with open(deps_json, encoding="utf-8") as f:
+                deps = json.load(f)["dependencies"]
+            manifest = json.dumps({"dependencies": deps}, separators=(",", ":")).encode("utf-8")
+            add_dir(tar, "packagemanagermanifest", mtime)
+            add_bytes(tar, "packagemanagermanifest/asset", manifest, mtime)
+            print(f"embedded Package Manager manifest with {len(deps)} dependencies")
         for root, dirs, files in os.walk(src):
             dirs[:] = sorted(d for d in dirs if not d.startswith("."))
             rel_root = os.path.relpath(root, src).replace("\\", "/")
@@ -108,6 +120,8 @@ def build_settings(src, out):
 
 if __name__ == "__main__":
     mode = sys.argv[1]
-    if mode == "kit": build_kit(sys.argv[2], sys.argv[3], sys.argv[4])
+    if mode == "kit":
+        deps = sys.argv[sys.argv.index("--deps") + 1] if "--deps" in sys.argv else None
+        build_kit(sys.argv[2], sys.argv[3], sys.argv[4], deps)
     elif mode == "settings": build_settings(sys.argv[2], sys.argv[3])
     else: raise SystemExit(__doc__)

@@ -28,6 +28,8 @@ https://github.com/open-mmorpg/open-mmorpg-installer.git
 
 After installation, browse addons at Tools → OpenMMORPG → Develop → **Addon Manager**.
 
+The kit archive also carries a Package Manager manifest, so importing `OpenMMORPG.unitypackage` on its own (for example from a GitHub Release) installs the same Unity package dependencies.
+
 ## Update
 
 Update the package in the Package Manager and re-run the wizard.

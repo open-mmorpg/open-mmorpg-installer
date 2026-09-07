@@ -18,11 +18,13 @@ While the kit repository is private, the workflow needs a repository secret name
 
 ```sh
 # kit: package the contents of an Assets/OpenMMORPG checkout
-python Tools~/build_unitypackage.py kit "<project>/Assets/OpenMMORPG" Assets/OpenMMORPG OpenMMORPG.unitypackage
+python Tools~/build_unitypackage.py kit "<project>/Assets/OpenMMORPG" Assets/OpenMMORPG OpenMMORPG.unitypackage --deps package.json
 
 # settings: package the six ProjectSettings files the wizard imports
 python Tools~/build_unitypackage.py settings Tools~/ProjectSettings OpenMMORPG_Settings.unitypackage
 ```
+
+`--deps package.json` embeds this package's `dependencies` into the kit archive as a Package Manager manifest (the same `packagemanagermanifest` entry Unity's own exporter writes). When the archive is imported, Unity adds those packages to the project before importing assets, so the kit compiles even if it was imported without this installer package, for example from a GitHub Release or the Asset Store.
 
 `Tools~/ProjectSettings/` holds the sanitized copies of the six settings files. When updating them from a Unity project, clear project-specific values in `ProjectSettings.asset` (`productName`, `cloudProjectId`, `organizationId`, `projectName`, `metroPackageName`, `metroApplicationDescription`) so they do not leak into other people's projects.
 

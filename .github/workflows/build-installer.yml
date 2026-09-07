@@ -70,7 +70,7 @@ jobs:
         run: |
           KIT_SHA=$(git -C kit rev-parse --short HEAD)
           echo "KIT_SHA=$KIT_SHA" >> "$GITHUB_ENV"
-          python Tools~/build_unitypackage.py kit kit Assets/OpenMMORPG OpenMMORPG.unitypackage
+          python Tools~/build_unitypackage.py kit kit Assets/OpenMMORPG OpenMMORPG.unitypackage --deps package.json
           python Tools~/build_unitypackage.py settings Tools~/ProjectSettings OpenMMORPG_Settings.unitypackage
 
       - name: Verify archives
