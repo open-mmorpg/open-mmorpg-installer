@@ -95,17 +95,15 @@ jobs:
 
       - name: Stamp version
         run: |
+          # Only package.json carries the version. The welcome screen reads it at
+          # runtime through PackageInfo, so there is nothing to stamp in the C#.
           python - <<'EOF'
-          import json, os, re
+          import json, os
           v = os.environ["VERSION"]
           p = "package.json"; m = json.load(open(p, encoding="utf-8"))
           m["version"] = v
-          with open(p, "w", encoding="utf-8", newline="\n") as f:
-              json.dump(m, f, indent=2, ensure_ascii=False); f.write("\n")
-          w = "Editor/OpenMMORPG_InstallWizard.cs"; s = open(w, encoding="utf-8").read()
-          s2, n = re.subn(r'(PREF_KEY_SHOWN = "OpenMMORPG_WizardShown_)[^"]+(")', rf'\g<1>{v}\g<2>', s)
-          assert n == 1, "PREF_KEY_SHOWN not found"
-          open(w, "w", encoding="utf-8", newline="\n").write(s2)
+          with open(p, "w", encoding="utf-8", newline=chr(10)) as f:
+              json.dump(m, f, indent=2, ensure_ascii=False); f.write(chr(10))
           print("stamped", v)
           EOF
           git diff --stat
@@ -114,7 +112,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json Editor/OpenMMORPG_InstallWizard.cs OpenMMORPG.unitypackage OpenMMORPG_Settings.unitypackage
+          git add package.json OpenMMORPG.unitypackage OpenMMORPG_Settings.unitypackage
           git commit -m "v$VERSION" -m "Kit: $KIT_REPO@${{ github.event.inputs.kit_ref }} ($KIT_SHA)"
           git tag -a "v$VERSION" -m "v$VERSION"
           git push origin HEAD:${{ github.ref_name }}

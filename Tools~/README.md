@@ -32,5 +32,5 @@ Manual release checklist:
 
 1. Tag the kit release in the [open-mmorpg](https://github.com/open-mmorpg/open-mmorpg) repository.
 2. Rebuild both archives from that tag.
-3. Bump `version` in `package.json` and the `PREF_KEY_SHOWN` suffix in `Editor/OpenMMORPG_InstallWizard.cs` so the wizard shows again after an update.
+3. Bump `version` in `package.json`. The welcome screen reads that version at runtime and reappears once per project after an update, so nothing needs changing in the C#.
 4. Commit, tag (for example `v1.1.0`), and push.
