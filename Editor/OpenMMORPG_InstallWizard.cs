@@ -59,39 +59,122 @@ namespace OpenMMORPG
             }
         }
 
+        private static double idleSince = -1;
+
         [InitializeOnLoadMethod]
         private static void InitOnLoad()
         {
             if (Application.isBatchMode)
                 return;
 
-            EditorApplication.delayCall += () =>
+            // Deliberately not EditorApplication.delayCall. A cold start runs through
+            // several domain reloads while packages resolve and assemblies compile, and
+            // a one-shot callback registered before one of those reloads is discarded,
+            // so the screen never appeared on a first install. Polling the update loop
+            // is re-registered by every reload and survives that.
+            EditorApplication.update += ShowWhenEditorIsIdle;
+        }
+
+        private static void ShowWhenEditorIsIdle()
+        {
+            // Wait for imports and compilation to finish; a window opened while the
+            // editor is still churning through a fresh install can be discarded.
+            if (EditorApplication.isCompiling || EditorApplication.isUpdating)
             {
-                if (!EditorPrefs.GetBool(ProjectKey("AutoShow"), true))
-                    return;
+                idleSince = -1;
+                return;
+            }
 
-                // Show once per project for each version of the package, so an update
-                // surfaces the screen again. An unreadable version still resolves to a
-                // non-empty marker, otherwise it would match the default and the screen
-                // would never appear.
-                string version = ReadPackageVersion();
-                if (string.IsNullOrEmpty(version))
-                    version = "unknown";
-                if (EditorPrefs.GetString(ProjectKey("ShownVersion"), "") == version)
-                    return;
+            if (idleSince < 0)
+            {
+                idleSince = EditorApplication.timeSinceStartup;
+                return;
+            }
 
-                EditorPrefs.SetString(ProjectKey("ShownVersion"), version);
-                ShowWizard();
-            };
+            if (EditorApplication.timeSinceStartup - idleSince < 1.0)
+                return;
+
+            EditorApplication.update -= ShowWhenEditorIsIdle;
+
+            if (!EditorPrefs.GetBool(ProjectKey("AutoShow"), true))
+                return;
+
+            // Show once per project for each version of the package, so an update
+            // surfaces the screen again. An unreadable version still resolves to a
+            // non-empty marker, otherwise it would match the default and the screen
+            // would never appear.
+            string version = ReadPackageVersion();
+            if (string.IsNullOrEmpty(version))
+                version = "unknown";
+            if (EditorPrefs.GetString(ProjectKey("ShownVersion"), "") == version)
+                return;
+
+            EditorPrefs.SetString(ProjectKey("ShownVersion"), version);
+            ShowWizard();
         }
 
         [MenuItem("Open MMORPG/Install/Show Setup Wizard", false, -1000)]
         public static void ShowWizard()
         {
             OpenMMORPG_InstallWizard window = GetWindow<OpenMMORPG_InstallWizard>(true, "Welcome to Open MMORPG");
-            window.minSize = new Vector2(620, 620);
-            window.maxSize = new Vector2(620, 620);
+
+            // Window size is in device pixels while the GUI inside is drawn at
+            // pixelsPerPoint, so a constant size leaves the content about a third less
+            // room than it needs on a scaled display and the text clips. Scale it.
+            //
+            // minSize and maxSize are deliberately equal. A utility window otherwise
+            // keeps the size it remembers from a previous session while the layout uses
+            // the size assigned here, and the mismatch clips the content just the same.
+            float scale = Mathf.Clamp(EditorGUIUtility.pixelsPerPoint, 1f, 3f);
+            Vector2 size = FitToMainWindow(new Vector2(640f * scale, 660f * scale));
+            window.minSize = size;
+            window.maxSize = size;
+            CenterOnMainWindow(window, size.x, size.y);
             window.Show();
+        }
+
+        /// <summary>Shrinks a desired window size so it still fits the editor window.</summary>
+        private static Vector2 FitToMainWindow(Vector2 size)
+        {
+            try
+            {
+                Rect main = EditorGUIUtility.GetMainWindowPosition();
+                if (main.width > 1 && main.height > 1)
+                {
+                    size.x = Mathf.Min(size.x, main.width - 40f);
+                    size.y = Mathf.Min(size.y, main.height - 40f);
+                }
+            }
+            catch (System.Exception)
+            {
+                // GetMainWindowPosition can fail very early in startup; the default is fine.
+            }
+            return size;
+        }
+
+        // Utility windows remember their last position for the whole machine, which can
+        // leave the screen entirely when monitors change. Place it over the editor.
+        private static void CenterOnMainWindow(EditorWindow window, float width, float height)
+        {
+            Rect main;
+            try
+            {
+                main = EditorGUIUtility.GetMainWindowPosition();
+            }
+            catch (System.Exception)
+            {
+                return;
+            }
+
+            if (main.width < 1 || main.height < 1)
+                return;
+
+            width = Mathf.Min(width, main.width);
+            height = Mathf.Min(height, main.height);
+            window.position = new Rect(
+                main.x + (main.width - width) * 0.5f,
+                main.y + (main.height - height) * 0.5f,
+                width, height);
         }
 
         #endregion
@@ -174,12 +257,17 @@ namespace OpenMMORPG
             stepTitleStyle = new GUIStyle(EditorStyles.boldLabel) { fontSize = 13 };
         }
 
+        private Vector2 scroll;
+
         private void OnGUI()
         {
             EnsureStyles();
             DrawHeader();
+
+            scroll = EditorGUILayout.BeginScrollView(scroll);
             DrawSteps();
-            GUILayout.FlexibleSpace();
+            EditorGUILayout.EndScrollView();
+
             DrawFooter();
         }
 
