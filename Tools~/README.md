@@ -8,7 +8,9 @@ The **Build installer** GitHub Action (`.github/workflows/build-installer.yml`) 
 
 1. Open the repository's **Actions** tab, pick **Build installer**, and click **Run workflow**.
 2. Enter the kit ref to package (for example the tag `v1.1.0` in the kit repo) and the installer version to stamp (for example `1.1.0`).
-3. The workflow builds `OpenMMORPG.unitypackage` from the kit ref and `OpenMMORPG_Settings.unitypackage` from `Tools~/ProjectSettings/`, stamps the version into `package.json` and the wizard's shown-once key, commits, tags `v<version>`, and (optionally) publishes a GitHub Release with the archives attached.
+3. The workflow builds `OpenMMORPG.unitypackage` from the kit ref and `OpenMMORPG_Settings.unitypackage` from `Tools~/ProjectSettings/`, stamps the version into `package.json`, commits, tags `v<version>`, and publishes a GitHub Release with both archives attached.
+
+The kit archive is deliberately **not** committed to this repository. It is published as a release asset, and the wizard downloads it, so the installed package stays a few dozen kilobytes. Publishing the release is therefore required, not optional.
 
 While the kit repository is private, the workflow needs a repository secret named **`KIT_REPO_TOKEN`**: a fine-grained personal access token with read access to *Contents* on `open-mmorpg/open-mmorpg`. Once the kit repository is public the secret can be removed; the default job token is enough.
 

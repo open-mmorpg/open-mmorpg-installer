@@ -1,6 +1,7 @@
 using System.IO;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Networking;
 
 namespace OpenMMORPG
 {
@@ -13,7 +14,8 @@ namespace OpenMMORPG
     {
         private const string PACKAGE_NAME = "com.openmmorpg.installer";
         private const string SETTINGS_PACKAGE_FILE = "OpenMMORPG_Settings.unitypackage";
-        private const string KIT_PACKAGE_FILE = "OpenMMORPG.unitypackage";
+        private const string KIT_ARCHIVE_NAME = "OpenMMORPG.unitypackage";
+        private const string INSTALLER_REPO_URL = "https://github.com/open-mmorpg/open-mmorpg-installer";
         private const string KIT_FOLDER = "Assets/OpenMMORPG";
         private const string ADDON_MANAGER_MENU = "Open MMORPG/Develop/Addon Manager";
 
@@ -305,22 +307,31 @@ namespace OpenMMORPG
         {
             bool settingsDone = SettingsImported;
             bool kitDone = KitImported;
+            bool idle = !IsBusy;
 
             DrawStep(1, "Import project settings", settingsDone,
                 "Applies the recommended Input, Physics, Tags and Layers, Quality and Time settings. Those project settings files are overwritten, so do this on a new project or to reset them.",
                 settingsDone ? "Reimport Settings" : "Import Settings",
-                delegate { ImportArchive(SETTINGS_PACKAGE_FILE); });
+                delegate { ImportArchive(SETTINGS_PACKAGE_FILE); }, idle);
 
             DrawStep(2, "Import Open MMORPG", kitDone,
-                "Imports the kit into " + KIT_FOLDER + " and adds the Unity packages it needs. Gathering the contents takes a moment after you click.",
+                "Downloads the kit release and imports it into " + KIT_FOLDER + ", along with the Unity packages it needs.",
                 kitDone ? "Reimport Open MMORPG" : "Import Open MMORPG",
-                delegate { ImportArchive(KIT_PACKAGE_FILE); });
+                delegate { DownloadAndImportKit(); }, idle);
 
             DrawStep(3, "Customize with addons", false,
                 "Browse and install community addons from the Addon Manager. Available once the kit is imported.",
                 "Open Addon Manager",
                 delegate { EditorApplication.ExecuteMenuItem(ADDON_MANAGER_MENU); },
-                kitDone);
+                kitDone && idle);
+
+            if (!string.IsNullOrEmpty(statusMessage))
+            {
+                GUILayout.BeginHorizontal();
+                GUILayout.Space(16);
+                GUILayout.Label(statusMessage, bodyStyle);
+                GUILayout.EndHorizontal();
+            }
         }
 
         private void DrawStep(int number, string title, bool done, string body, string buttonLabel, System.Action action, bool enabled = true)
@@ -437,5 +448,154 @@ namespace OpenMMORPG
 
             AssetDatabase.ImportPackage(path, true);
         }
+
+        #region Kit download
+
+        // The kit is not shipped inside this package. It is published as a release asset
+        // so the installer stays small and the kit can be updated on its own.
+        private UnityWebRequest kitRequest;
+        private string statusMessage = "";
+
+        private bool IsBusy
+        {
+            get { return kitRequest != null; }
+        }
+
+        /// <summary>Release asset matching this installer version, when the version is known.</summary>
+        private string KitArchiveUrl
+        {
+            get
+            {
+                if (!string.IsNullOrEmpty(packageVersion))
+                    return INSTALLER_REPO_URL + "/releases/download/v" + packageVersion + "/" + KIT_ARCHIVE_NAME;
+                return LatestKitArchiveUrl;
+            }
+        }
+
+        private static string LatestKitArchiveUrl
+        {
+            get { return INSTALLER_REPO_URL + "/releases/latest/download/" + KIT_ARCHIVE_NAME; }
+        }
+
+        private void DownloadAndImportKit()
+        {
+            StartKitDownload(KitArchiveUrl);
+        }
+
+        private void StartKitDownload(string url)
+        {
+            if (IsBusy)
+                return;
+
+            string tempPath = "Temp/" + KIT_ARCHIVE_NAME;
+            statusMessage = "Downloading the kit...";
+
+            kitRequest = UnityWebRequest.Get(url);
+            EditorApplication.update += RepaintWhileDownloading;
+
+            kitRequest.SendWebRequest().completed += _ =>
+            {
+                UnityWebRequest request = kitRequest;
+                kitRequest = null;
+                EditorApplication.update -= RepaintWhileDownloading;
+
+                if (request.result != UnityWebRequest.Result.Success)
+                {
+                    string error = request.error;
+                    request.Dispose();
+
+                    // A tag without a published asset would otherwise dead-end here, so
+                    // fall back to whatever the newest release offers.
+                    if (url != LatestKitArchiveUrl)
+                    {
+                        Debug.LogWarning("[Open MMORPG] no kit archive at " + url + " (" + error + "); trying the latest release instead.");
+                        StartKitDownload(LatestKitArchiveUrl);
+                        return;
+                    }
+
+                    statusMessage = "";
+                    Debug.LogError("[Open MMORPG] could not download the kit from " + url + ": " + error);
+                    EditorUtility.DisplayDialog("Download Failed",
+                        "Could not download " + KIT_ARCHIVE_NAME + ".\n\n" + error +
+                        "\n\nCheck your connection, or download it yourself from " + INSTALLER_REPO_URL + "/releases and import it through Assets > Import Package > Custom Package.",
+                        "OK");
+                    Repaint();
+                    return;
+                }
+
+                try
+                {
+                    Directory.CreateDirectory(Path.GetDirectoryName(tempPath));
+                    File.WriteAllBytes(tempPath, request.downloadHandler.data);
+                }
+                catch (System.Exception e)
+                {
+                    statusMessage = "";
+                    Debug.LogError("[Open MMORPG] could not write the downloaded kit: " + e.Message);
+                    request.Dispose();
+                    Repaint();
+                    return;
+                }
+
+                request.Dispose();
+                statusMessage = "Importing the kit...";
+                Repaint();
+                ImportDownloadedKit(tempPath);
+            };
+        }
+
+        private void RepaintWhileDownloading()
+        {
+            if (kitRequest == null)
+                return;
+
+            statusMessage = string.Format("Downloading the kit... {0:P0}", kitRequest.downloadProgress);
+            Repaint();
+        }
+
+        /// <summary>
+        /// Imports the downloaded archive. ImportPackage is asynchronous, so the file can
+        /// only be deleted once Unity reports it is finished with it.
+        /// </summary>
+        private void ImportDownloadedKit(string tempPath)
+        {
+            AssetDatabase.ImportPackageCallback onCompleted = null;
+            AssetDatabase.ImportPackageCallback onCancelled = null;
+            AssetDatabase.ImportPackageFailedCallback onFailed = null;
+
+            System.Action finish = () =>
+            {
+                AssetDatabase.importPackageCompleted -= onCompleted;
+                AssetDatabase.importPackageCancelled -= onCancelled;
+                AssetDatabase.importPackageFailed -= onFailed;
+                try
+                {
+                    if (File.Exists(tempPath))
+                        File.Delete(tempPath);
+                }
+                catch (System.Exception)
+                {
+                    //a leftover file under Temp is harmless
+                }
+            };
+
+            onCompleted = _ => { finish(); statusMessage = ""; Repaint(); };
+            onCancelled = _ => { finish(); statusMessage = ""; Repaint(); };
+            onFailed = (name, error) =>
+            {
+                finish();
+                statusMessage = "";
+                Debug.LogError("[Open MMORPG] failed to import " + name + ": " + error);
+                Repaint();
+            };
+
+            AssetDatabase.importPackageCompleted += onCompleted;
+            AssetDatabase.importPackageCancelled += onCancelled;
+            AssetDatabase.importPackageFailed += onFailed;
+
+            AssetDatabase.ImportPackage(tempPath, true);
+        }
+
+        #endregion
     }
 }

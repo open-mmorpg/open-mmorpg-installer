@@ -2,7 +2,9 @@
 
 ![image](Resources/OpenMMORPG.png)
 
-Unity package that installs [Open MMORPG](https://github.com/open-mmorpg/open-mmorpg), a free, community-maintained distribution of MMORPG Kit, together with the Unity packages it depends on.
+Setup wizard that installs [Open MMORPG](https://github.com/open-mmorpg/open-mmorpg), a free, community-maintained distribution of MMORPG Kit, together with the Unity packages it depends on.
+
+This package contains the wizard only. The kit itself is downloaded from the matching [release](https://github.com/open-mmorpg/open-mmorpg-installer/releases) when you run step 2, which keeps the package small and lets the kit be updated on its own.
 
 ## Install
 
@@ -24,11 +26,11 @@ https://github.com/open-mmorpg/open-mmorpg-installer.git
  - ProjectSettings/TagManager.asset
  - ProjectSettings/TimeManager.asset
 
-4. Click **Import Open MMORPG** to import the latest release into `Assets/OpenMMORPG`.
+4. Click **Import Open MMORPG**. The kit archive is downloaded from the release matching this package version and imported into `Assets/OpenMMORPG`. This step needs an internet connection.
 
 After installation, browse addons at Open MMORPG → Develop → **Addon Manager**.
 
-The kit archive also carries a Package Manager manifest, so importing `OpenMMORPG.unitypackage` on its own (for example from a GitHub Release) installs the same Unity package dependencies.
+The kit archive carries a Package Manager manifest, so importing `OpenMMORPG.unitypackage` on its own, straight from a [release](https://github.com/open-mmorpg/open-mmorpg-installer/releases), installs the same Unity package dependencies without this wizard.
 
 ## Update
 
@@ -51,8 +53,8 @@ See the kit's [CONTRIBUTING.md](https://github.com/open-mmorpg/open-mmorpg/blob/
 | `package.json` | Package manifest and Unity package dependencies |
 | `Editor/OpenMMORPG_InstallWizard.cs` | The welcome screen and its setup steps |
 | `Editor/OpenMMORPG.Installer.Editor.asmdef` | Editor assembly for the welcome screen; Unity ignores package scripts without one |
-| `OpenMMORPG.unitypackage` | The kit, imported into `Assets/OpenMMORPG` |
 | `OpenMMORPG_Settings.unitypackage` | The six ProjectSettings files listed above |
+| (release asset) | `OpenMMORPG.unitypackage`, the kit itself, downloaded on demand rather than shipped here |
 | `Tools~/` | Release tooling, ignored by Unity; see its README to rebuild the archives |
 
 ## Releasing a new version

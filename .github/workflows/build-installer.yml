@@ -1,7 +1,9 @@
 name: Build installer
 
-# Rebuilds OpenMMORPG.unitypackage and OpenMMORPG_Settings.unitypackage from a
-# kit ref, stamps the version, commits the archives, and tags the installer.
+# Builds the kit and settings archives from a kit ref, stamps the version, tags
+# the installer and publishes the archives as release assets. The kit archive is
+# NOT committed: the installer package stays small and the wizard downloads the
+# kit from the release this workflow creates.
 # No Unity install or license is needed: the archives are built with
 # Tools~/build_unitypackage.py.
 
@@ -15,10 +17,6 @@ on:
       version:
         description: "Installer version to stamp, e.g. 1.1.0 (tag v1.1.0 is created)"
         required: true
-      create_release:
-        description: "Also create a GitHub Release with the archives attached"
-        type: boolean
-        default: true
 
 permissions:
   contents: write
@@ -112,18 +110,18 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add package.json OpenMMORPG.unitypackage OpenMMORPG_Settings.unitypackage
+          git add package.json OpenMMORPG_Settings.unitypackage
           git commit -m "v$VERSION" -m "Kit: $KIT_REPO@${{ github.event.inputs.kit_ref }} ($KIT_SHA)"
           git tag -a "v$VERSION" -m "v$VERSION"
           git push origin HEAD:${{ github.ref_name }}
           git push origin "v$VERSION"
 
+      # Required, not optional: the wizard downloads the kit from this release.
       - name: Create GitHub Release
-        if: ${{ github.event.inputs.create_release == 'true' }}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           gh release create "v$VERSION" \
             --title "v$VERSION" \
-            --notes "Built from $KIT_REPO@${{ github.event.inputs.kit_ref }} ($KIT_SHA). Install via Package Manager git URL: https://github.com/${{ github.repository }}.git#v$VERSION" \
+            --notes "Built from $KIT_REPO@${{ github.event.inputs.kit_ref }} ($KIT_SHA). Install the wizard via Package Manager git URL: https://github.com/${{ github.repository }}.git#v$VERSION - it downloads OpenMMORPG.unitypackage from this release." \
             OpenMMORPG.unitypackage OpenMMORPG_Settings.unitypackage

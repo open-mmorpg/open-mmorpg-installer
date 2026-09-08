@@ -1,0 +1,3 @@
+# Built by the release workflow and attached to the GitHub release. The kit is not
+# shipped inside this package: the wizard downloads it.
+/OpenMMORPG.unitypackage
