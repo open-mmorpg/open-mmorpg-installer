@@ -5,8 +5,8 @@
   "description": "Installs Open MMORPG and required Unity packages.",
   "unity": "6000.3",
   "author": "Open MMORPG",
-  "documentationUrl": "https://github.com/open-mmorpg/open-mmorpg/blob/master/README.md",
-  "changelogUrl": "https://github.com/open-mmorpg/open-mmorpg/releases",
+  "documentationUrl": "https://github.com/open-mmorpg/OpenMMORPG/blob/master/README.md",
+  "changelogUrl": "https://github.com/open-mmorpg/OpenMMORPG/releases",
   "licensesUrl": "https://github.com/open-mmorpg/open-mmorpg-installer/blob/master/LICENSE.md",
   "dependencies": {
     "com.unity.addressables": "2.9.1",

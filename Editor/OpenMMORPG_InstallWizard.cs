@@ -19,7 +19,7 @@ namespace OpenMMORPG
         private const string KIT_FOLDER = "Assets/OpenMMORPG";
         private const string ADDON_MANAGER_MENU = "Open MMORPG/Develop/Addon Manager";
 
-        private const string KIT_REPO_URL = "https://github.com/open-mmorpg/open-mmorpg";
+        private const string KIT_REPO_URL = "https://github.com/open-mmorpg/OpenMMORPG";
         private const string DOCS_URL = KIT_REPO_URL + "/blob/master/README.md";
         private const string ISSUES_URL = KIT_REPO_URL + "/issues";
 

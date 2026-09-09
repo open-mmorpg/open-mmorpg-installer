@@ -2,7 +2,7 @@
 
 ![image](Resources/OpenMMORPG.png)
 
-Setup wizard that installs [Open MMORPG](https://github.com/open-mmorpg/open-mmorpg), a free, community-maintained distribution of MMORPG Kit, together with the Unity packages it depends on.
+Setup wizard that installs [Open MMORPG](https://github.com/open-mmorpg/OpenMMORPG), a free, community-maintained distribution of MMORPG Kit, together with the Unity packages it depends on.
 
 This package contains the wizard only. The kit itself is downloaded from the matching [release](https://github.com/open-mmorpg/open-mmorpg-installer/releases) when you run step 2, which keeps the package small and lets the kit be updated on its own.
 
@@ -41,10 +41,10 @@ Update the package in the Package Manager. The welcome screen reappears after an
 Delete the imported `Assets/OpenMMORPG` folder and clone the kit repository in its place:
 
 ```sh
-git clone https://github.com/open-mmorpg/open-mmorpg.git Assets/OpenMMORPG
+git clone https://github.com/open-mmorpg/OpenMMORPG.git Assets/OpenMMORPG
 ```
 
-See the kit's [CONTRIBUTING.md](https://github.com/open-mmorpg/open-mmorpg/blob/master/CONTRIBUTING.md) for the branch model.
+See the kit's [CONTRIBUTING.md](https://github.com/open-mmorpg/OpenMMORPG/blob/master/CONTRIBUTING.md) for the branch model.
 
 ## What is in this package
 
@@ -63,4 +63,4 @@ Releases are built by the **Build installer** GitHub Action: run it from the Act
 
 ## License
 
-MIT, see the kit's [LICENSE](https://github.com/open-mmorpg/open-mmorpg/blob/master/LICENSE).
+MIT, see the kit's [LICENSE](https://github.com/open-mmorpg/OpenMMORPG/blob/master/LICENSE).

@@ -12,7 +12,7 @@ The **Build installer** GitHub Action (`.github/workflows/build-installer.yml`) 
 
 The kit archive is deliberately **not** committed to this repository. It is published as a release asset, and the wizard downloads it, so the installed package stays a few dozen kilobytes. Publishing the release is therefore required, not optional.
 
-While the kit repository is private, the workflow needs a repository secret named **`KIT_REPO_TOKEN`**: a fine-grained personal access token with read access to *Contents* on `open-mmorpg/open-mmorpg`. Once the kit repository is public the secret can be removed; the default job token is enough.
+While the kit repository is private, the workflow needs a repository secret named **`KIT_REPO_TOKEN`**: a fine-grained personal access token with read access to *Contents* on `open-mmorpg/OpenMMORPG`. Once the kit repository is public the secret can be removed; the default job token is enough.
 
 ## Manual build
 
@@ -32,7 +32,7 @@ python Tools~/build_unitypackage.py settings Tools~/ProjectSettings OpenMMORPG_S
 
 Manual release checklist:
 
-1. Tag the kit release in the [open-mmorpg](https://github.com/open-mmorpg/open-mmorpg) repository.
+1. Tag the kit release in the [open-mmorpg](https://github.com/open-mmorpg/OpenMMORPG) repository.
 2. Rebuild both archives from that tag.
 3. Bump `version` in `package.json`. The welcome screen reads that version at runtime and reappears once per project after an update, so nothing needs changing in the C#.
 4. Commit, tag (for example `v1.1.0`), and push.

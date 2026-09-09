@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       kit_ref:
-        description: "Kit ref to package (tag, branch, or commit of open-mmorpg/open-mmorpg)"
+        description: "Kit ref to package (tag, branch, or commit of open-mmorpg/OpenMMORPG)"
         required: true
         default: master
       version:
@@ -29,7 +29,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     env:
-      KIT_REPO: open-mmorpg/open-mmorpg
+      KIT_REPO: open-mmorpg/OpenMMORPG
       VERSION: ${{ github.event.inputs.version }}
     steps:
       - name: Validate version
